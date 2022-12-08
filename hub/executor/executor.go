@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/Dreamacro/clash/adapter"
-	"github.com/Dreamacro/clash/adapter/inbound"
 	"github.com/Dreamacro/clash/adapter/outboundgroup"
 	"github.com/Dreamacro/clash/component/auth"
 	"github.com/Dreamacro/clash/component/dialer"
@@ -156,7 +155,6 @@ func updateListeners(general *config.General, listeners map[string]C.InboundList
 	listener.ReCreateHTTP(general.Port, tcpIn)
 	listener.ReCreateSocks(general.SocksPort, tcpIn, udpIn)
 	listener.ReCreateRedir(general.RedirPort, tcpIn, udpIn, natTable)
-	listener.ReCreateAutoRedir(general.EBpf.AutoRedir, tcpIn, udpIn)
 	listener.ReCreateTProxy(general.TProxyPort, tcpIn, udpIn, natTable)
 	listener.ReCreateMixed(general.MixedPort, tcpIn, udpIn)
 	listener.ReCreateShadowSocks(general.ShadowSocksConfig, tcpIn, udpIn)
@@ -216,7 +214,6 @@ func updateDNS(c *config.DNS, generalIPv6 bool) {
 
 	resolver.DefaultResolver = r
 	resolver.DefaultHostMapper = m
-	resolver.DefaultLocalServer = dns.NewLocalServer(r, m)
 
 	if pr.HasProxyServer() {
 		resolver.ProxyServerHostResolver = pr
@@ -331,27 +328,16 @@ func updateTunnels(tunnels []LC.Tunnel) {
 func updateGeneral(general *config.General) {
 	tunnel.SetMode(general.Mode)
 	tunnel.SetFindProcessMode(general.FindProcessMode)
-	resolver.DisableIPv6 =!general.IPv6
+	resolver.DisableIPv6 = !general.IPv6
 
 	if general.TCPConcurrent {
 		dialer.SetDial(general.TCPConcurrent)
 		log.Infoln("Use tcp concurrent")
 	}
 
-	inbound.SetTfo(general.InboundTfo)
-
 	adapter.UnifiedDelay.Store(general.UnifiedDelay)
 	// Avoid reload configuration clean the value, causing traffic loops
-	if listener.GetTunConf().Enable && listener.GetTunConf().AutoDetectInterface {
-		// changed only when the name is specified
-		// if name is empty, setting delay until after tun loaded
-		if general.Interface != "" && (!general.Tun.Enable || !general.Tun.AutoDetectInterface) {
-			dialer.DefaultInterface.Store(general.Interface)
-		}
-	} else {
-		dialer.DefaultInterface.Store(general.Interface)
-	}
-
+	dialer.DefaultInterface.Store(general.Interface)
 	dialer.DefaultRoutingMark.Store(int32(general.RoutingMark))
 	if general.RoutingMark > 0 {
 		log.Infoln("Use routing mark: %#x", general.RoutingMark)
